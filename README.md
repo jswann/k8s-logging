@@ -15,7 +15,36 @@ The logging architecture leverages a modified version of the ELK Stack. This sta
 
 1. Clone the repository:
 
-`$ git clone https://github.com/jswann/k8s-logging.git`
+```bash 
+git clone https://github.com/jswann/k8s-logging.git
+```
+
+2. Configure and/or verify Storage Class
+
+2. Configure ingress url in `kibana.yaml` file
+
+2. Create `logging` namespace
+```bash
+kubectl create namespace logging
+```
+
+2. Apply Kubernetes files
+
+```bash
+kubectl apply -f .
+```
+
+2. Access `Kibana` by using the URL configured in the ingress portion of the `kibana.yaml` file
+
+## Indexes
+
+* _kube_sys_sysd_ - This index is a collection of all the Kubernetes system containers. Containers which start with names matching `k8s_.*_kube-system_.* k8s_.*_kube-public_.* k8s_.*_tc-system_.*`. This log also contains events and actions captured from the Kubernetes API
+
+* _kube_user_sysd_ - This index contains user or non-system defined kubernete containers.
+
+* _ucp_sys_sysd_ - This index contains the UCP Manager and worker container logs.
+
+* _sys_sysd_ - This index contains all `journald` logs for all nodes
 
 ## References
 
