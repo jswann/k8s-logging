@@ -64,23 +64,51 @@ subjects:
 ---
 apiVersion: v1
 data:
-  filter-docker.conf: "[FILTER]\n    Name                grep\n    Match               docker.*\n
-    \   Exclude             CONTAINER_NAME k8s_\n    \n[FILTER]\n    Name                record_modifier\n
-    \   Match               docker.*\n    Remove_key          _EXE\n    Remove_key
-    \         EXE\n    Remove_key          _CAP_EFFECTIVE\n    Remove_key          CAP_EFFECTIVE\n
-    \   Remove_key          _CMDLINE\n    Remove_key          CMDLINE\n    Remove_key
-    \         _COMM\n    Remove_key          COMM\n    Remove_key          _GID\n
-    \   Remove_key          GID\n    Remove_key          _PID\n    Remove_key          PID\n
-    \   Remove_key          _SOURCE_REALTIME_TIMESTAMP\n    Remove_key          SOURCE_REALTIME_TIMESTAMP\n
-    \   Remove_key          _SYSTEMD_CGROUP\n    Remove_key          SYSTEMD_CGROUP\n
-    \   Remove_key          _SYSTEMD_SLICE\n    Remove_key          SYSTEMD_SLICE\n
-    \   Remove_key          _SYSTEMD_UNIT\n    Remove_key          SYSTEMD_UNIT\n
-    \   Remove_key          _TRANSPORT\n    Remove_key          TRANSPORT\n    Remove_key
-    \         _UID\n    Remove_key          UID\n    Remove_key          PRIORITY\n
-    \   Remove_key          SYSLOG_IDENTIFIER\n\n[FILTER]\n    Name                grep\n
-    \   Match               docker.ucp_sys_systemd.*\n    Exclude             CONTAINER_NAME
-    ucp-kube.*\n\n[FILTER]\n    Name                grep\n    Match               docker.ucp_kube_systemd.*\n
-    \   Regex               CONTAINER_NAME ucp-kube.*"
+  filter-docker.conf: |-
+    [FILTER]
+        Name                grep
+        Match               docker.*
+        Exclude             CONTAINER_NAME k8s_
+
+    [FILTER]
+        Name                record_modifier
+        Match               docker.*
+        Remove_key          _EXE
+        Remove_key          EXE
+        Remove_key          _CAP_EFFECTIVE
+        Remove_key          CAP_EFFECTIVE
+        Remove_key          _CMDLINE
+        Remove_key          CMDLINE
+        Remove_key          _COMM
+        Remove_key          COMM
+        Remove_key          _GID
+        Remove_key          GID
+        Remove_key          _PID
+        Remove_key          PID
+        Remove_key          _SOURCE_REALTIME_TIMESTAMP
+        Remove_key          SOURCE_REALTIME_TIMESTAMP
+        Remove_key          _SYSTEMD_CGROUP
+        Remove_key          SYSTEMD_CGROUP
+        Remove_key          _SYSTEMD_SLICE
+        Remove_key          SYSTEMD_SLICE
+        Remove_key          _SYSTEMD_UNIT
+        Remove_key          SYSTEMD_UNIT
+        Remove_key          _TRANSPORT
+        Remove_key          TRANSPORT
+        Remove_key          _UID
+        Remove_key          UID
+        Remove_key          PRIORITY
+        Remove_key          SYSLOG_IDENTIFIER
+
+    [FILTER]
+        Name                grep
+        Match               docker.ucp_sys_systemd.*
+        Exclude             CONTAINER_NAME ucp-kube.*
+
+    [FILTER]
+        Name                grep
+        Match               docker.ucp_kube_systemd.*
+        Regex               CONTAINER_NAME ucp-kube.*
   filter-kubernetes.conf: |-
     [FILTER]
         Name                grep
@@ -411,7 +439,7 @@ metadata:
     com.docker.enterprise.app: fluent-bit-logging
     com.docker.enterprise.infra.environment: Production
     kubernetes.io/cluster-service: "true"
-  name: fluent-bit-config-72bbd46g67
+  name: fluent-bit-config-bh9h5g9g74
   namespace: kube-system
 ---
 apiVersion: v1
@@ -497,7 +525,7 @@ spec:
           readOnly: true
         - mountPath: /fluent-bit/etc/
           name: fluent-bit-config
-      dnsPolicy: ClusterFirst      
+      dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
@@ -523,7 +551,7 @@ spec:
         name: varlibdockercontainers
       - configMap:
           defaultMode: 420
-          name: fluent-bit-config-72bbd46g67
+          name: fluent-bit-config-bh9h5g9g74
         name: fluent-bit-config
   updateStrategy:
     type: OnDelete
