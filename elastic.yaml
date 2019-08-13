@@ -1,0 +1,187 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    com.docker.enterprise.app: es-cluster
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Local
+    com.docker.enterprise.infra.tier: ServiceAccount
+    kubernetes.io/cluster-service: "true"
+  name: elasticsearch-sa
+  namespace: logging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    com.docker.enterprise.app: es-cluster
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Local
+    com.docker.enterprise.infra.tier: Role
+    kubernetes.io/cluster-service: "true"
+  name: elasticsearch
+  namespace: logging
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    com.docker.enterprise.app: es-cluster
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Local
+    com.docker.enterprise.infra.tier: Role
+    kubernetes.io/cluster-service: "true"
+  name: elasticsearch
+  namespace: logging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: elasticsearch
+subjects:
+- kind: ServiceAccount
+  name: elasticsearch-sa
+  namespace: logging
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    com.docker.enterprise.app: es-cluster
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Local
+    com.docker.enterprise.infra.tier: Service
+    com.docker.enterprise.service: es-cluster
+    kubernetes.io/cluster-service: "true"
+  name: es-cluster
+  namespace: logging
+spec:
+  ports:
+  - name: api
+    port: 9200
+    protocol: TCP
+  - name: inter-node
+    port: 9300
+    protocol: TCP
+  selector:
+    com.docker.enterprise.app: es-cluster
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Local
+    com.docker.enterprise.infra.tier: Service
+    kubernetes.io/cluster-service: "true"
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    com.docker.enterprise.app: es-cluster
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Local
+    com.docker.enterprise.infra.tier: Service
+    kubernetes.io/cluster-service: "true"
+  name: es-cluster
+  namespace: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      com.docker.enterprise.app: es-cluster
+      com.docker.enterprise.infra.class: Non-Exposed
+      com.docker.enterprise.infra.environment: Local
+      com.docker.enterprise.infra.tier: Service
+      kubernetes.io/cluster-service: "true"
+  serviceName: es-cluster
+  template:
+    metadata:
+      labels:
+        com.docker.enterprise.app: es-cluster
+        com.docker.enterprise.infra.class: Non-Exposed
+        com.docker.enterprise.infra.environment: Local
+        com.docker.enterprise.infra.tier: Service
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+      - env:
+        - name: cluster.name
+          value: k8s-logs
+        - name: node.name
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        # - name: discovery.zen.ping.unicast.hosts
+        #   value: es-cluster.logging.svc
+        # - name: discovery.zen.minimum_master_nodes
+        #   value: "2"
+        - name: ES_JAVA_OPTS
+          value: -Xms512m -Xmx512m
+        image: elasticsearch:6.8.0
+        name: elasticsearch-statefulset
+        ports:
+        - containerPort: 9200
+          name: api
+          protocol: TCP
+        - containerPort: 9300
+          name: inter-node
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2000Mi
+          requests:
+            cpu: 100m
+            memory: 250Mi
+        volumeMounts:
+        - mountPath: /usr/share/elasticsearch/data
+          name: es-cluster-data-pv-claim      
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - chown -R 1000:1000 /usr/share/elasticsearch/data
+        image: busybox:1.28
+        name: fix-permissions
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /usr/share/elasticsearch/data
+          name: es-cluster-data-pv-claim
+      - command:
+        - sysctl
+        - -w
+        - vm.max_map_count=262144
+        image: busybox:1.28
+        name: increase-vm-max-map
+        securityContext:
+          privileged: true
+      - command:
+        - sh
+        - -c
+        - ulimit -n 65536
+        image: busybox:1.28
+        name: increase-fd-ulimit
+        securityContext:
+          privileged: true
+  volumeClaimTemplates:
+  - metadata:
+      labels:
+        com.docker.enterprise.app: es-cluster
+        com.docker.enterprise.infra.environment: Local
+        kubernetes.io/cluster-service: "true"
+      name: es-cluster-data-pv-claim
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+      storageClassName: standard

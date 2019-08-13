@@ -1,0 +1,534 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    prometheus.io/path: /api/v1/metrics/prometheus
+    prometheus.io/port: "2020"
+    prometheus.io/scrape: "true"
+  labels:
+    com.docker.enterprise.app: fluent-bit-logging
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: ServiceAccount
+    kubernetes.io/cluster-service: "true"
+  name: fluent-bit
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    prometheus.io/path: /api/v1/metrics/prometheus
+    prometheus.io/port: "2020"
+    prometheus.io/scrape: "true"
+  labels:
+    com.docker.enterprise.app: fluent-bit-logging
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: Security
+    kubernetes.io/cluster-service: "true"
+  name: fluent-bit-read
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    prometheus.io/path: /api/v1/metrics/prometheus
+    prometheus.io/port: "2020"
+    prometheus.io/scrape: "true"
+  labels:
+    com.docker.enterprise.app: fluent-bit-logging
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: Security
+    kubernetes.io/cluster-service: "true"
+  name: fluent-bit-daemonset
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit-read
+subjects:
+- kind: ServiceAccount
+  name: fluent-bit
+  namespace: kube-system
+---
+apiVersion: v1
+data:
+  filter-docker.conf: "[FILTER]\n    Name                grep\n    Match               docker.*\n
+    \   Exclude             CONTAINER_NAME k8s_\n    \n[FILTER]\n    Name                record_modifier\n
+    \   Match               docker.*\n    Remove_key          _EXE\n    Remove_key
+    \         EXE\n    Remove_key          _CAP_EFFECTIVE\n    Remove_key          CAP_EFFECTIVE\n
+    \   Remove_key          _CMDLINE\n    Remove_key          CMDLINE\n    Remove_key
+    \         _COMM\n    Remove_key          COMM\n    Remove_key          _GID\n
+    \   Remove_key          GID\n    Remove_key          _PID\n    Remove_key          PID\n
+    \   Remove_key          _SOURCE_REALTIME_TIMESTAMP\n    Remove_key          SOURCE_REALTIME_TIMESTAMP\n
+    \   Remove_key          _SYSTEMD_CGROUP\n    Remove_key          SYSTEMD_CGROUP\n
+    \   Remove_key          _SYSTEMD_SLICE\n    Remove_key          SYSTEMD_SLICE\n
+    \   Remove_key          _SYSTEMD_UNIT\n    Remove_key          SYSTEMD_UNIT\n
+    \   Remove_key          _TRANSPORT\n    Remove_key          TRANSPORT\n    Remove_key
+    \         _UID\n    Remove_key          UID\n    Remove_key          PRIORITY\n
+    \   Remove_key          SYSLOG_IDENTIFIER\n\n[FILTER]\n    Name                grep\n
+    \   Match               docker.ucp_sys_systemd.*\n    Exclude             CONTAINER_NAME
+    ucp-kube.*\n\n[FILTER]\n    Name                grep\n    Match               docker.ucp_kube_systemd.*\n
+    \   Regex               CONTAINER_NAME ucp-kube.*"
+  filter-kubernetes.conf: |-
+    [FILTER]
+        Name                grep
+        Match               kube.*
+        Regex               CONTAINER_NAME k8s_
+        Exclude             CONTAINER_NAME k8s_fluent-bit
+        Exclude             CONTAINER_NAME ucp-
+
+    [FILTER]
+        Name                record_modifier
+        Match               kube.*
+        Remove_key          _EXE
+        Remove_key          EXE
+        Remove_key          _CAP_EFFECTIVE
+        Remove_key          CAP_EFFECTIVE
+        Remove_key          _CMDLINE
+        Remove_key          CMDLINE
+        Remove_key          _COMM
+        Remove_key          COMM
+        Remove_key          _GID
+        Remove_key          GID
+        Remove_key          _PID
+        Remove_key          PID
+        Remove_key          _SOURCE_REALTIME_TIMESTAMP
+        Remove_key          SOURCE_REALTIME_TIMESTAMP
+        Remove_key          _SYSTEMD_CGROUP
+        Remove_key          SYSTEMD_CGROUP
+        Remove_key          _SYSTEMD_SLICE
+        Remove_key          SYSTEMD_SLICE
+        Remove_key          _SYSTEMD_UNIT
+        Remove_key          SYSTEMD_UNIT
+        Remove_key          _TRANSPORT
+        Remove_key          TRANSPORT
+        Remove_key          _UID
+        Remove_key          UID
+        Remove_key          PRIORITY
+        Remove_key          SYSLOG_IDENTIFIER
+
+    [FILTER]
+        Name                grep
+        Match               kube.user_systemd.*
+        Exclude             CONTAINER_NAME k8s_.*_kube-system_.*
+
+    [FILTER]
+        Name                grep
+        Match               kube.sys_systemd.*
+        Regex               CONTAINER_NAME k8s_.*_kube-system_.*
+        Regex               CONTAINER_NAME k8s_.*_kube-public_.*
+        Regex               CONTAINER_NAME k8s_.*_tc-system_.*
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube.user_systemd.*
+        Use_Journal         True
+        Tag_Key             flb-tag
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Merge_Log           On
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude True
+        Kube_Tag_Prefix     kube.user_systemd.
+        Merge_Log_Key       log_processed
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube.sys_systemd.*
+        Use_Journal         True
+        Tag_Key             flb-tag
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Merge_Log           On
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude True
+        Kube_Tag_Prefix     kube.sys_systemd.
+        Merge_Log_Key       log_processed
+  filter-systemd.conf: |-
+    [FILTER]
+        Name                modify
+        Match               *
+        Rename              _BOOT_ID BOOT_ID
+        Rename              _CAP_EFFECTIVE CAP_EFFECTIVE
+        Rename              _CMDLINE CMDLINE
+        Rename              _COMM COMM
+        Rename              _EXE EXE
+        Rename              _GID GID
+        Rename              _HOSTNAME HOSTNAME
+        Rename              _MACHINE_ID MACHINE_ID
+        Rename              _PID PID
+        Rename              _SOURCE_REALTIME_TIMESTAMP SOURCE_REALTIME_TIMESTAMP
+        Rename              _SYSTEMD_CGROUP SYSTEMD_CGROUP
+        Rename              _SYSTEMD_SLICE SYSTEMD_SLICE
+        Rename              _SYSTEMD_UNIT SYSTEMD_UNIT
+        Rename              _TRANSPORT TRANSPORT
+        Rename              _UID UID
+        Rename              MESSAGE log
+
+    [FILTER]
+        Name                grep
+        Match               sys_systemd.*
+        Exclude             CONTAINER_NAME k8s_
+        Exclude             CONTAINER_NAME ucp
+  fluent-bit.conf: |-
+    [SERVICE]
+        Flush                       60
+        Log_Level                   info
+        storage.sync                normal
+        storage.checksum            off
+        storage.backlog.mem_limit   5M
+        Daemon                      off
+        Parsers_File                parsers.conf
+        HTTP_Server                 On
+        HTTP_Listen                 0.0.0.0
+        HTTP_Port                   2020
+
+    @INCLUDE input-kubernetes.conf
+    @INCLUDE filter-kubernetes.conf
+    @INCLUDE input-systemd.conf
+    @INCLUDE filter-systemd.conf
+    @INCLUDE filter-docker.conf
+    @INCLUDE output-fluentd.conf
+  input-docker.conf: |-
+    [INPUT]
+        Name              tail
+        Tag               docker.var.lib.containers.*
+        Path              /var/lib/docker/containers/*/*.log
+        Parser            docker
+        DB                /var/log/flb_docker.db
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+        Docker_Mode       True
+  input-kubernetes.conf: |-
+    [INPUT]
+        Name              tail
+        Tag               kube.var.log.containers.*
+        Path              /var/log/containers/*.log
+        Parser            docker
+        DB                /var/log/flb_kube.db
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+        Refresh_Interval  10
+  input-systemd.conf: |-
+    [INPUT]
+        Name                systemd
+        Flags               DYN_TAG
+        Threaded            No
+        Tag                 sys_systemd.*
+        Mem_Buf_Limit       976.6K
+        Path                /run/log/journal
+        Max_Entries         5000
+        Read_From_Tail      true
+
+    [INPUT]
+        Name                systemd
+        Flags               DYN_TAG
+        Threaded            No
+        Tag                 kube.sys_systemd.*
+        Mem_Buf_Limit       976.6K
+        Path                /run/log/journal
+        Max_Entries         5000
+        Systemd_Filter      _SYSTEMD_UNIT=docker.service
+        Read_From_Tail      true
+        Parser              docker
+
+    [INPUT]
+        Name                systemd
+        Flags               DYN_TAG
+        Threaded            No
+        Tag                 kube.user_systemd.*
+        Mem_Buf_Limit       976.6K
+        Path                /run/log/journal
+        Max_Entries         5000
+        Systemd_Filter      _SYSTEMD_UNIT=docker.service
+        Read_From_Tail      true
+
+    [INPUT]
+        Name                systemd
+        Flags               DYN_TAG
+        Threaded            No
+        Tag                 docker.ucp_kube_systemd.*
+        Mem_Buf_Limit       976.6K
+        Path                /run/log/journal
+        Max_Entries         5000
+        Systemd_Filter      _SYSTEMD_UNIT=docker.service
+        Read_From_Tail      true
+        Parser              docker
+
+    [INPUT]
+        Name                systemd
+        Flags               DYN_TAG
+        Threaded            No
+        Tag                 docker.ucp_sys_systemd.*
+        Mem_Buf_Limit       976.6K
+        Path                /run/log/journal
+        Max_Entries         5000
+        Systemd_Filter      _SYSTEMD_UNIT=docker.service
+        Read_From_Tail      true
+        Parser              docker
+  output-fluentd.conf: |-
+    [OUTPUT]
+        Name                forward
+        Match               *
+        Host                ${FLUENT_FORWARDER_HOST}
+        Port                ${FLUENT_FORWARDER_PORT}
+        Time_as_Integer     true
+  parsers.conf: |-
+    [PARSER]
+        Name   apache
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   apache2
+        Format regex
+        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>.*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   apache_error
+        Format regex
+        Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
+
+    [PARSER]
+        Name   nginx
+        Format regex
+        Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name        k8s-nginx-ingress
+        Format      regex
+        Regex       ^(?<host>[^ ]*) - \[(?<real_ip>[^ ]*)\] - (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*) "(?<referer>[^\"]*)" "(?<agent>[^\"]*)" (?<request_length>[^ ]*) (?<request_time>[^ ]*) \[(?<proxy_upstream_name>[^ ]*)\] (?<upstream_addr>[^ ]*) (?<upstream_response_length>[^ ]*) (?<upstream_response_time>[^ ]*) (?<upstream_status>[^ ]*) (?<last>[^$]*)
+        Time_Key    time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name   json
+        Format json
+        Time_Key time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+
+    [PARSER]
+        Name         docker
+        Format       json
+        Time_Key     time
+        Time_Format  %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep    On
+        # --
+        # Since Fluent Bit v1.2, if you are parsing Docker logs and using
+        # the Kubernetes filter, it's not longer required to decode the
+        # 'log' key.
+        #
+        # Command      |  Decoder | Field | Optional Action
+        # =============|==================|=================
+        #Decode_Field_As    json     log
+
+    [PARSER]
+        Name        docker-daemon
+        Format      regex
+        Regex       time="(?<time>[^ ]*)" level=(?<level>[^ ]*) msg="(?<msg>[^ ].*)"
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+
+    [PARSER]
+        Name        syslog-rfc5424
+        Format      regex
+        Regex       ^\<(?<pri>[0-9]{1,5})\>1 (?<time>[^ ]+) (?<host>[^ ]+) (?<ident>[^ ]+) (?<pid>[-0-9]+) (?<msgid>[^ ]+) (?<extradata>(\[(.*)\]|-)) (?<message>.+)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+
+    [PARSER]
+        Name        syslog-rfc3164-local
+        Format      regex
+        Regex       ^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+        Time_Key    time
+        Time_Format %b %d %H:%M:%S
+        Time_Keep   On
+
+    [PARSER]
+        Name        syslog-rfc3164
+        Format      regex
+        Regex       /^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$/
+        Time_Key    time
+        Time_Format %b %d %H:%M:%S
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+
+    [PARSER]
+        Name    mongodb
+        Format  regex
+        Regex   ^(?<time>[^ ]*)\s+(?<severity>\w)\s+(?<component>[^ ]+)\s+\[(?<context>[^\]]+)]\s+(?<message>.*?) *(?<ms>(\d+))?(:?ms)?$
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+        Time_Key time
+
+    [PARSER]
+        # http://rubular.com/r/tjUt3Awgg4
+        Name cri
+        Format regex
+        Regex ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+
+    [PARSER]
+        Name    kube-custom
+        Format  regex
+        Regex   (?<tag>[^.]+)?\.?(?<pod_name>[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-(?<docker_id>[a-z0-9]{64})\.log$
+
+    [PARSER]
+        Name    filter-kube-test
+        Format  regex
+        Regex   (?<pod_name>[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-(?<docker_id>[a-z0-9]{64})\.log$
+kind: ConfigMap
+metadata:
+  annotations:
+    prometheus.io/path: /api/v1/metrics/prometheus
+    prometheus.io/port: "2020"
+    prometheus.io/scrape: "true"
+  labels:
+    com.docker.enterprise.app: fluent-bit-logging
+    com.docker.enterprise.infra.environment: Production
+    kubernetes.io/cluster-service: "true"
+  name: fluent-bit-config-72bbd46g67
+  namespace: kube-system
+---
+apiVersion: v1
+data:
+  FLUENT_FORWARDER_HOST: fluentd.logging
+  FLUENT_FORWARDER_PORT: "24224"
+kind: ConfigMap
+metadata:
+  annotations:
+    prometheus.io/path: /api/v1/metrics/prometheus
+    prometheus.io/port: "2020"
+    prometheus.io/scrape: "true"
+  labels:
+    com.docker.enterprise.app: fluent-bit-logging
+    com.docker.enterprise.infra.environment: Production
+    kubernetes.io/cluster-service: "true"
+  name: fluent-bit-environment-h5kgmk84cd
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+    prometheus.io/path: /api/v1/metrics/prometheus
+    prometheus.io/port: "2020"
+    prometheus.io/scrape: "true"
+  labels:
+    com.docker.enterprise.app: fluent-bit-logging
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: Service
+    kubernetes.io/cluster-service: "true"
+  name: fluent-bit-daemonset
+  namespace: kube-system
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      com.docker.enterprise.app: fluent-bit-logging
+      com.docker.enterprise.infra.class: Non-Exposed
+      com.docker.enterprise.infra.environment: Production
+      com.docker.enterprise.infra.tier: Service
+      kubernetes.io/cluster-service: "true"
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /api/v1/metrics/prometheus
+        prometheus.io/port: "2020"
+        prometheus.io/scrape: "true"
+      labels:
+        com.docker.enterprise.app: fluent-bit-logging
+        com.docker.enterprise.infra.class: Non-Exposed
+        com.docker.enterprise.infra.environment: Production
+        com.docker.enterprise.infra.tier: Service
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: fluent-bit-environment-h5kgmk84cd
+        image: fluent/fluent-bit:1.1.1-debug
+        imagePullPolicy: IfNotPresent
+        name: fluent-bit
+        ports:
+        - containerPort: 2020
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 1
+            memory: 4000Mi
+          requests:
+            cpu: 100m
+            memory: 1000Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /run/log/journal
+          name: runlogjournal
+        - mountPath: /var/log
+          name: varlog
+        - mountPath: /var/lib/docker/containers
+          name: varlibdockercontainers
+          readOnly: true
+        - mountPath: /fluent-bit/etc/
+          name: fluent-bit-config
+      dnsPolicy: ClusterFirst      
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: fluent-bit
+      serviceAccountName: fluent-bit
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /run/log/journal
+          type: ""
+        name: runlogjournal
+      - hostPath:
+          path: /var/log
+          type: ""
+        name: varlog
+      - hostPath:
+          path: /var/lib/docker/containers
+          type: ""
+        name: varlibdockercontainers
+      - configMap:
+          defaultMode: 420
+          name: fluent-bit-config-72bbd46g67
+        name: fluent-bit-config
+  updateStrategy:
+    type: OnDelete
+status:
+  currentNumberScheduled: 0
+  desiredNumberScheduled: 0
+  numberMisscheduled: 0
+  numberReady: 0

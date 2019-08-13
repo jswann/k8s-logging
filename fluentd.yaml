@@ -1,0 +1,332 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    com.docker.enterprise.app.tribe: infrastructure
+  labels:
+    com.docker.enterprise.app: fluentd
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: ServiceAccount
+  name: fluentd-sa
+  namespace: logging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    com.docker.enterprise.app.tribe: infrastructure
+  labels:
+    com.docker.enterprise.app: fluentd
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: Security
+  name: fluentd
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    com.docker.enterprise.app.tribe: infrastructure
+  labels:
+    com.docker.enterprise.app: fluentd
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: Security
+  name: fluentd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluentd
+subjects:
+- kind: ServiceAccount
+  name: fluentd-sa
+  namespace: logging
+---
+apiVersion: v1
+data:
+  FLUENT_ELASTICSEARCH_HOST: es-cluster
+  FLUENT_ELASTICSEARCH_PASSWORD: changeme
+  FLUENT_ELASTICSEARCH_PORT: "9200"
+  FLUENT_ELASTICSEARCH_SCHEME: http
+  FLUENT_ELASTICSEARCH_SED_DISABLE: "true"
+  FLUENT_ELASTICSEARCH_USER: elastic
+  FLUENT_UID: "0"
+  FLUENTD_ARGS: ="--no-supervisor -q
+  fluent.conf: |-
+    <system>
+      root_dir /tmp/fluentd-buffers/
+      workers 8
+    </system>
+
+    <source>
+      @id     forward
+      @type   forward
+    </source>
+
+    <match fluent.**>
+      @type null
+    </match>
+
+    <match docker.var.lib.containers.**>
+      @type elasticsearch
+      <buffer>
+        @type memory
+        flush_thread_count 4
+      </buffer>
+      host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix docker-containers
+        logstash_format true
+        include_tag_key true
+    </match>
+
+    <match kube.var.log.containers.**>
+      @type elasticsearch
+      <buffer>
+        @type memory
+        flush_thread_count 4
+      </buffer>
+      host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix kube-containers
+        logstash_format true
+        include_tag_key true
+    </match>
+
+    <match sys_systemd.**>
+        @type elasticsearch
+        <buffer>
+          flush_thread_count 4
+        </buffer>
+        host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix sys_sysd
+        logstash_format true
+        include_tag_key true
+    </match>
+
+    <match kube.sys_systemd.**>
+        @type elasticsearch
+        <buffer>
+          flush_thread_count 4
+        </buffer>
+        host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix kube_sys_sysd
+        logstash_format true
+        include_tag_key true
+    </match>
+
+    <match kube.user_systemd.**>
+        @type elasticsearch
+        <buffer>
+          flush_thread_count 4
+        </buffer>
+        host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix kube_user_sysd
+        logstash_format true
+        include_tag_key true
+    </match>
+
+    <match docker.ucp_sys_systemd.**>
+        @type elasticsearch
+        <buffer>
+          flush_thread_count 4
+        </buffer>
+        host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix ucp_sys_sysd
+        logstash_format true
+        include_tag_key true
+    </match>
+
+    <match docker.ucp_kube_systemd.**>
+        @type elasticsearch
+        <buffer>
+          flush_thread_count 4
+        </buffer>
+        host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix ucp_kube_sysd
+        logstash_format true
+        include_tag_key true
+    </match>
+
+    <match **.**>
+        @type elasticsearch
+        <buffer>
+          flush_thread_count 4
+        </buffer>
+        host "#{ENV['FLUENT_ELASTICSEARCH_HOST']}"
+        port "#{ENV['FLUENT_ELASTICSEARCH_PORT']}"
+        user "#{ENV['FLUENT_ELASTICSEARCH_USER']}" # remove these lines if not needed
+        password "#{ENV['FLUENT_ELASTICSEARCH_PASSWORD']}" # remove these lines if not needed
+        scheme http
+        logstash_prefix logstash_default
+        logstash_format true
+        include_tag_key true
+    </match>
+kind: ConfigMap
+metadata:
+  annotations:
+    com.docker.enterprise.app.tribe: infrastructure
+  labels:
+    com.docker.enterprise.app: fluentd
+    com.docker.enterprise.infra.environment: Production
+  name: fluentd-config-4m542ccd48
+  namespace: logging
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    com.docker.enterprise.app.tribe: infrastructure
+  labels:
+    com.docker.enterprise.app: fluentd
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: LoadBalancer
+    com.docker.enterprise.service: fluentd
+  name: fluentd
+  namespace: logging
+spec:
+  ports:
+  - name: fluentd-forwarder-port
+    nodePort: 35535
+    port: 24224
+    protocol: TCP
+    targetPort: 24224
+  selector:
+    com.docker.enterprise.app: fluentd
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: Service
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    com.docker.enterprise.app.tribe: infrastructure
+    deployment.kubernetes.io/revision: "1"
+  generation: 1
+  labels:
+    com.docker.enterprise.app: fluentd
+    com.docker.enterprise.infra.class: Non-Exposed
+    com.docker.enterprise.infra.environment: Production
+    com.docker.enterprise.infra.tier: Service
+  name: fluentd-deployment
+  namespace: logging
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      com.docker.enterprise.app: fluentd
+      com.docker.enterprise.infra.class: Non-Exposed
+      com.docker.enterprise.infra.environment: Production
+      com.docker.enterprise.infra.tier: Service
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        com.docker.enterprise.app.tribe: infrastructure
+      labels:
+        com.docker.enterprise.app: fluentd
+        com.docker.enterprise.infra.class: Non-Exposed
+        com.docker.enterprise.infra.environment: Production
+        com.docker.enterprise.infra.tier: Service
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: fluentd-config-4m542ccd48
+        image: fluent/fluentd-kubernetes-daemonset:v1.4.2-debian-elasticsearch-1.0
+        imagePullPolicy: IfNotPresent
+        name: fluentd
+        ports:
+        - containerPort: 24224
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 200m
+            memory: 4000Mi
+          requests:
+            cpu: 100m
+            memory: 1000Mi
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/log
+          name: varlog
+        - mountPath: /var/lib/docker/containers
+          name: varlibdockercontainers
+          readOnly: true
+        - mountPath: /fluentd/etc
+          name: fluentd-config
+      dnsPolicy: ClusterFirst      
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccountName: fluentd-sa
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - hostPath:
+          path: /run/log/journal
+          type: ""
+        name: runlogjournal
+      - hostPath:
+          path: /var/log
+          type: ""
+        name: varlog
+      - hostPath:
+          path: /var/lib/docker/containers
+          type: ""
+        name: varlibdockercontainers
+      - configMap:
+          name: fluentd-config-4m542ccd48
+        name: fluentd-config
+status: {}
